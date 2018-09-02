@@ -18,7 +18,7 @@ from .utils import get_optimizer, parse_lambda_config, update_lambdas
 from .model import build_mt_model
 from .multiprocessing_event_loop import MultiprocessingEventLoop
 from .test import test_sharing
-
+import sys
 
 logger = getLogger()
 
@@ -40,8 +40,8 @@ class TrainerMT(MultiprocessingEventLoop):
         self.params = params
 
         # initialization for on-the-fly generation/training
-        if len(params.pivo_directions) > 0:
-            self.otf_start_multiprocessing()
+       # if len(params.pivo_directions) > 0:
+           # self.otf_start_multiprocessing()
 
         # define encoder parameters (the ones shared with the
         # decoder are optimized by the decoder optimizer)
@@ -449,7 +449,6 @@ class TrainerMT(MultiprocessingEventLoop):
         self.decoder.train()
         if self.discriminator is not None:
             self.discriminator.eval()
-
         # batch
         if back:
             (sent1, len1), (sent2, len2) = self.get_batch('encdec', lang1, lang2, back=True)
@@ -458,16 +457,13 @@ class TrainerMT(MultiprocessingEventLoop):
             sent2, len2 = sent1, len1
         else:
             (sent1, len1), (sent2, len2) = self.get_batch('encdec', lang1, lang2)
-
         # prepare the encoder / decoder inputs
         if lang1 == lang2:
             sent1, len1 = self.add_noise(sent1, len1, lang1_id)
         sent1, sent2 = sent1.cuda(), sent2.cuda()
-
         # encoded states
         encoded = self.encoder(sent1, len1, lang1_id)
         self.stats['enc_norms_%s' % lang1].append(encoded.dis_input.data.norm(2, 1).mean())
-
         # cross-entropy scores / loss
         scores = self.decoder(encoded, sent2[:-1], lang2_id)
         xe_loss = loss_fn(scores.view(-1, n_words), sent2[1:].view(-1))
@@ -523,7 +519,7 @@ class TrainerMT(MultiprocessingEventLoop):
         self.encoder, self.decoder, _, _ = build_mt_model(self.params, self.data, cuda=False)
 
     def otf_sync_params(self):
-        # logger.info("Syncing encoder and decoder params for OTF generation ...")
+        logger.info("Syncing encoder and decoder params for OTF generation ...")
 
         def get_flat_params(module):
             return torch._utils._flatten_dense_tensors(
@@ -547,28 +543,7 @@ class TrainerMT(MultiprocessingEventLoop):
         set_flat_params(self.encoder, encoder_params)
         set_flat_params(self.decoder, decoder_params)
 
-    def otf_bt_gen_async(self, init_cache_size=None):
-        logger.info("Populating initial OTF generation cache ...")
-        if init_cache_size is None:
-            init_cache_size = self.num_replicas
-        cache = [
-            self.call_async(rank=i % self.num_replicas, action='_async_otf_bt_gen',
-                            result_type='otf_gen', fetch_all=True,
-                            batches=self.get_worker_batches())
-            for i in range(init_cache_size)
-        ]
-        while True:
-            results = cache[0].gen()
-            for rank, _ in results:
-                cache.pop(0)  # keep the cache a fixed size
-                cache.append(
-                    self.call_async(rank=rank, action='_async_otf_bt_gen',
-                                    result_type='otf_gen', fetch_all=True,
-                                    batches=self.get_worker_batches())
-                )
-            for _, result in results:
-                yield result
-
+    
     def get_worker_batches(self):
         """
         Create batches for CPU threads.
@@ -593,7 +568,8 @@ class TrainerMT(MultiprocessingEventLoop):
                 assert lang1 != lang2 and lang2 != lang3 and lang1 != lang3
                 if self.params.lambda_xe_otfd > 0:
                     (sent1, len1), (sent3, len3) = self.get_batch('otf', lang1, lang3)
-
+            sent1 = sent1.cuda()
+            sent3 =sent3.cuda()
             batches.append({
                 'direction': direction,
                 'sent1': sent1,
@@ -604,14 +580,13 @@ class TrainerMT(MultiprocessingEventLoop):
 
         return batches
 
-    def _async_otf_bt_gen(self, rank, device_id, batches):
+    def otf_bt_gen(self, rank, device_id, batches):
         """
         On the fly back-translation (generation step).
         """
         params = self.params
         self.encoder.eval()
         self.decoder.eval()
-
         results = []
 
         with torch.no_grad():
@@ -622,7 +597,6 @@ class TrainerMT(MultiprocessingEventLoop):
                 lang2_id = params.lang2id[lang2]
                 sent1, len1 = batch['sent1'], batch['len1']
                 sent3, len3 = batch['sent3'], batch['len3']
-
                 # lang1 -> lang2
                 encoded = self.encoder(sent1, len1, lang_id=lang1_id)
                 max_len = int(1.5 * len1.max() + 10)
@@ -631,9 +605,8 @@ class TrainerMT(MultiprocessingEventLoop):
                 else:
                     sent2, len2, _ = self.decoder.generate(encoded, lang_id=lang2_id, max_len=max_len,
                                                            sample=True, temperature=params.otf_sample)
-
+                
                 # keep cached batches on CPU for easier transfer
-                assert not any(x.is_cuda for x in [sent1, sent2, sent3])
                 results.append(dict([
                     ('lang1', lang1), ('sent1', sent1), ('len1', len1),
                     ('lang2', lang2), ('sent2', sent2), ('len2', len2),
@@ -882,3 +855,17 @@ class TrainerMT(MultiprocessingEventLoop):
                 exit()
         self.epoch += 1
         self.save_checkpoint()
+
+    def otf_bt_gen_async(self, init_cache_size=None):
+        cache = [
+             self.otf_bt_gen(None,None,batches=self.get_worker_batches())
+        ]
+        while True:
+            results = cache[0]
+            cache.pop(0)  # keep the cache a fixed size
+            cache.append(
+                self.otf_bt_gen(None,None,batches=self.get_worker_batches())
+            )
+            _,result = results
+            yield result
+

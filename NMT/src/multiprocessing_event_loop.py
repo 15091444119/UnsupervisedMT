@@ -11,7 +11,7 @@ import signal
 import threading
 from torch import multiprocessing
 import uuid
-
+import sys
 
 class MultiprocessingEventLoop(object):
     """Start a multiprocessing event loop."""
@@ -67,6 +67,7 @@ class MultiprocessingEventLoop(object):
 
             # But also actively look for more results to return.
             while True:
+                
                 for rank in range(self.num_replicas):
                     # consume all available results from this replica
                     while self.return_pipes[rank].poll():
