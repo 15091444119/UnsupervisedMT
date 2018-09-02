@@ -272,9 +272,12 @@ if __name__ == '__main__':
         logger.info("====================== Starting epoch %i ... ======================" % trainer.epoch)
 
         trainer.n_sentences = 0
-
+        step = 1
         while trainer.n_sentences < params.epoch_size:
-
+            print(step)
+            step += 1
+            import sys
+            sys.stdout.flush()
             # discriminator training
             for _ in range(params.n_dis):
                 trainer.discriminator_step()
@@ -309,8 +312,8 @@ if __name__ == '__main__':
                     params.started_otf_batch_gen = True
 
                 # update model parameters on subprocesses
-                if trainer.n_iter % params.otf_sync_params_every == 0:
-                    trainer.otf_sync_params()
+               # if trainer.n_iter % params.otf_sync_params_every == 0:
+                #    trainer.otf_sync_params()
 
                 # get training batch from CPU
                 before_gen = time.time()
