@@ -1,33 +1,57 @@
+set -e
+set -u
 
-DataDir="/home/zhouzh/data/XLM_data/mono/ne_en_500w_sample"
+export CUDA_VISIBLE_DEVICES="5"
+DataDir="/home/zhouzh/data/XLM_data/mono/zh_en_500w_sample"
 ParaDir="/home/user_data55/zhouzh/low-resource_mt/flores/data/wiki_ne_en_bpe5000"
-DestDir="/home/data_ti4_c/zhouzh/low-resource-mt/UNMT_preprocessed_data"
+DestDir="./tmp"  #"/home/data_ti4_c/zhouzh/low-resource-mt/UNMT_preprocessed_data"
 NumMerge=30000
 FastBpe="/home/data_ti4_c/zhouzh/low-resource-mt/tools/fastBPE/fast"
 Word2Vec="/home/data_ti4_c/zhouzh/low-resource-mt/tools/word2vec/word2vec"
-VecMap="python3 map_embeddings.py --identical"
+VecMap="python3 /home/data_ti4_c/zhouzh/low-resource-mt/tools/vecmap/map_embeddings.py"
+Binarize="python3 /home/data_ti4_c/zhouzh/low-resource-mt/UnsupervisedMT/NMT/preprocess.py"
 Src=en
-Tgt=ne
+Tgt=zh
+
+# check if src <= tgt
+if [ $Src \> $Tgt ]; then
+    echo "source language $Src > target language $Tgt, wrong data format"
+    exit
+fi
+
+# check if destdir already exsits
+if [ -d $DestDir ];then
+    echo "dest dir already exsits, please remove it first"
+    exit
+else
+    echo "DestDir=$DestDir"
+    mkdir -p $DestDir
+fi
+
 
 # learn bpe and apply bpe, binarize monolingual validing data
+echo -e "\n Preprocess monolingual data \n"
 for Lang in "$Src" "$Tgt"; do
-    $FastBpe learnbpe $NumMerge $DataDir/valid.$Lang > $DestDir/$Lang_codes
-    $FastBpe applybpe $DestDir/valid.$Lang $DataDir/valid.$Lang $DestDir/$Lang_codes
-    $FastBpe getvocab $DestDir/valid.$Lang > $DestDir/$Lang_vocab
-    $Binarize $DestDir/$Lang_vocab $DestDir/valid.$Lang
+    $FastBpe learnbpe $NumMerge $DataDir/train.$Lang > $DestDir/$Lang.codes
+    $FastBpe applybpe $DestDir/train.$Lang $DataDir/train.$Lang $DestDir/$Lang.codes
+    $FastBpe getvocab $DestDir/train.$Lang > $DestDir/$Lang.vocab
+    $Binarize $DestDir/$Lang.vocab $DestDir/train.$Lang
 done
 
 # process parallel data
+echo -e "\n Preprocess parallel data \n"
 for Splt in "valid" "test"; do
     for Lang in "$Src" "$Tgt"; do
-        $FastBpe applybpe $DestDir/$Splt.$Src-$Tgt.$Lang $ParaDir/$Splt.$Lang $DestDir/$Lang_codes
-        $Binarize $DestDir/$Lang_vocab $DestDir/$Splt.$Src-$Tgt.$Lang
+        $FastBpe applybpe $DestDir/$Splt.$Src-$Tgt.$Lang $ParaDir/$Splt.$Lang $DestDir/$Lang.codes
+        $Binarize $DestDir/$Lang.vocab $DestDir/$Splt.$Src-$Tgt.$Lang
     done
 done
 
+echo -e "\n Learn Word2vec \n"
 # word2vec
-$Word2Vec -valid $DestDir/valid.$Src -output $DestDir/emb.$Src.txt -cbow 0 -size 512 -window 10 -negative 10 -hs 0 -sample 1e-4 -threads 50 -binary 0 -min-count 5 -iter 10
-$Word2Vec -valid $DestDir/valid.$Tgt -output $DestDir/emb.$Tgt.txt -cbow 0 -size 512 -window 10 -negative 10 -hs 0 -sample 1e-4 -threads 50 -binary 0 -min-count 5 -iter 10
+$Word2Vec -train $DestDir/valid.$Src -output $DestDir/emb.$Src.txt -cbow 0 -size 512 -window 10 -negative 10 -hs 0 -threads 50 -binary 0 -iter 10
+$Word2Vec -train $DestDir/valid.$Tgt -output $DestDir/emb.$Tgt.txt -cbow 0 -size 512 -window 10 -negative 10 -hs 0 -threads 50 -binary 0 -iter 10
 
 # vecmap
-$VecMap $DestDir/emb.$Src.txt $DestDir/emb.$Tgt.txt $DestDir/emb.$Src.mapped.txt $DestDir/emb.$Tgt.mapped.txt
+echo -e "\n Map embeddings \n"
+$VecMap $DestDir/emb.$Src.txt $DestDir/emb.$Tgt.txt $DestDir/emb.$Src.mapped.txt $DestDir/emb.$Tgt.mapped.txt --cuda --identical -v
