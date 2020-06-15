@@ -9,12 +9,12 @@ VecMap="python3 map_embeddings.py --identical"
 Src=en
 Tgt=ne
 
-# learn bpe and apply bpe, binarize monolingual training data
+# learn bpe and apply bpe, binarize monolingual validing data
 for Lang in "$Src" "$Tgt"; do
-    $FastBpe learnbpe $NumMerge $DataDir/train.$Lang > $DestDir/$Lang_codes
-    $FastBpe applybpe $DestDir/train.$Lang $DataDir/train.$Lang $DestDir/$Lang_codes
-    $FastBpe getvocab $DestDir/train.$Lang > $DestDir/$Lang_vocab
-    $Binarize $DestDir/$Lang_vocab $DestDir/train.$Lang
+    $FastBpe learnbpe $NumMerge $DataDir/valid.$Lang > $DestDir/$Lang_codes
+    $FastBpe applybpe $DestDir/valid.$Lang $DataDir/valid.$Lang $DestDir/$Lang_codes
+    $FastBpe getvocab $DestDir/valid.$Lang > $DestDir/$Lang_vocab
+    $Binarize $DestDir/$Lang_vocab $DestDir/valid.$Lang
 done
 
 # process parallel data
@@ -26,8 +26,8 @@ for Splt in "valid" "test"; do
 done
 
 # word2vec
-$Word2Vec -train $DestDir/train.$Src -output $DestDir/emb.$Src.txt -cbow 0 -size 512 -window 10 -negative 10 -hs 0 -sample 1e-4 -threads 50 -binary 0 -min-count 5 -iter 10
-$Word2Vec -train $DestDir/train.$Tgt -output $DestDir/emb.$Tgt.txt -cbow 0 -size 512 -window 10 -negative 10 -hs 0 -sample 1e-4 -threads 50 -binary 0 -min-count 5 -iter 10
+$Word2Vec -valid $DestDir/valid.$Src -output $DestDir/emb.$Src.txt -cbow 0 -size 512 -window 10 -negative 10 -hs 0 -sample 1e-4 -threads 50 -binary 0 -min-count 5 -iter 10
+$Word2Vec -valid $DestDir/valid.$Tgt -output $DestDir/emb.$Tgt.txt -cbow 0 -size 512 -window 10 -negative 10 -hs 0 -sample 1e-4 -threads 50 -binary 0 -min-count 5 -iter 10
 
 # vecmap
 $VecMap $DestDir/emb.$Src.txt $DestDir/emb.$Tgt.txt $DestDir/emb.$Src.mapped.txt $DestDir/emb.$Tgt.mapped.txt
