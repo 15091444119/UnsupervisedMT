@@ -106,7 +106,7 @@ class Dictionary(object):
             if '\u2028' in line:
                 skipped += 1
                 continue
-            line = line.rstrip().split()
+            line = line.rstrip().split(' ')
             assert len(line) == 2, (i, line)
             assert line[0] not in word2id and line[1].isdigit(), (i, line)
             word2id[line[0]] = 4 + SPECIAL_WORDS + i - skipped  # shift because of extra words
