@@ -13,8 +13,7 @@ from torch.nn import Parameter
 import torch.nn.functional as F
 
 from .. import fairseq_utils as utils
-
-
+import sys
 class MultiheadAttention(nn.Module):
     """Multi-headed attention.
 
@@ -57,7 +56,6 @@ class MultiheadAttention(nn.Module):
         the key by passing a binary ByteTensor (`key_padding_mask`) with shape:
         batch x src_len, where padding elements are indicated by 1s.
         """
-
         qkv_same = query.data_ptr() == key.data_ptr() == value.data_ptr()
         kv_same = key.data_ptr() == value.data_ptr()
 
@@ -82,7 +80,6 @@ class MultiheadAttention(nn.Module):
         assert embed_dim == self.embed_dim
         assert list(query.size()) == [tgt_len, bsz, embed_dim]
         assert key.size() == value.size()
-
         if qkv_same:
             # self-attention
             q, k, v = self.in_proj_qkv(query)
@@ -95,7 +92,6 @@ class MultiheadAttention(nn.Module):
             k = self.in_proj_k(key)
             v = self.in_proj_v(value)
         q *= self.scaling
-
         if saved_state is not None:
             if 'prev_key' in saved_state:
                 k = torch.cat((saved_state['prev_key'], k), dim=0)
@@ -115,7 +111,7 @@ class MultiheadAttention(nn.Module):
         if key_padding_mask is not None:
             assert key_padding_mask.size(0) == bsz
             assert key_padding_mask.size(1) == src_len
-
+        
         q = q.contiguous().view(tgt_len, bsz * self.num_heads, self.head_dim).transpose(0, 1)
         k = k.contiguous().view(src_len, bsz * self.num_heads, self.head_dim).transpose(0, 1)
         v = v.contiguous().view(src_len, bsz * self.num_heads, self.head_dim).transpose(0, 1)

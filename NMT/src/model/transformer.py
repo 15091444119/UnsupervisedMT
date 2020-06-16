@@ -21,7 +21,6 @@ from ..sequence_generator import SequenceGenerator
 
 from . import LatentState
 
-
 logger = getLogger()
 
 
@@ -75,7 +74,6 @@ class TransformerEncoder(nn.Module):
 
     def forward(self, src_tokens, src_lengths, lang_id):
         assert type(lang_id) is int
-
         embed_tokens = self.embeddings[lang_id]
 
         # embed tokens and positions
@@ -86,11 +84,11 @@ class TransformerEncoder(nn.Module):
 
         # compute padding mask
         encoder_padding_mask = src_tokens.t().eq(self.padding_idx)
+        
 
         # encoder layers
         for layer in self.layers:
             x = layer[lang_id](x, encoder_padding_mask)
-
         return LatentState(
             input_len=src_lengths,
             dec_input={
@@ -229,7 +227,6 @@ class TransformerDecoder(nn.Module):
 
         # project back to size of vocabulary
         x = proj_layer(x)
-
         return x
 
     def max_positions(self):
@@ -275,7 +272,6 @@ class TransformerDecoder(nn.Module):
         x_len = encoded.input_len
         is_cuda = latent.is_cuda
         one_hot = None
-
         # check inputs
         assert type(lang_id) is int
         assert latent.size() == (x_len.max(), x_len.size(0), self.emb_dim)
@@ -398,7 +394,7 @@ class TransformerEncoderLayer(nn.Module):
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = residual + x
         x = self.maybe_layer_norm(0, x, after=True)
-
+         
         residual = x
         x = self.maybe_layer_norm(1, x, before=True)
         x = F.relu(self.fc1(x))

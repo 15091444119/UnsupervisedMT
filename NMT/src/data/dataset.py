@@ -31,8 +31,7 @@ class Dataset(object):
         """
         assert type(lang_id) is int
         lengths = torch.LongTensor([len(s) + 2 for s in sentences])
-        sent = torch.LongTensor(lengths.max(), lengths.size(0)).fill_(self.pad_index)
-
+        sent = torch.LongTensor(lengths.max(), lengths.size(0)).fill_(self.pad_index) 
         sent[0] = self.bos_index[lang_id]
         for i, s in enumerate(sentences):
             sent[1:lengths[i] - 1, i].copy_(s)
