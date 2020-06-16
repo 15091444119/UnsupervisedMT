@@ -321,9 +321,16 @@ def check_all_data_params(params):
     assert not (len(params.mono_dataset) == 0) ^ (params.n_mono == 0)
     if len(params.mono_dataset) > 0:
         assert type(params.mono_dataset) is dict
+        print(params.langs)
+        print(params.mono_dataset.keys())
         assert all(lang in params.langs for lang in params.mono_dataset.keys())
         assert all(len(v.split(',')) == 3 for v in params.mono_dataset.values())
         params.mono_dataset = {k: tuple(v.split(',')) for k, v in params.mono_dataset.items()}
+        for paths in params.mono_dataset.values():
+            for path in paths:
+                print(path)
+                if path != '' and not os.path.isfile(path):
+                    print(path)
         assert all(all(((i > 0 and path == '') or os.path.isfile(path)) for i, path in enumerate(paths))
                    for paths in params.mono_dataset.values())
 
