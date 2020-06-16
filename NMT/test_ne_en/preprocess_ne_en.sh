@@ -2,16 +2,16 @@ set -e
 set -u
 
 export CUDA_VISIBLE_DEVICES="5"
-DataDir="/home/zhouzh/data/tokenized_data//mono/zh_en_500w_sample"
-ParaDir="/home/zhouzh/data/tokenized_data/para/zh-en"
-DestDir="/home/data_ti4_c/zhouzh/low-resource-mt/UNMT_preprocessed_data/en-zh"
+DataDir="/home/zhouzh/data/tokenized_data//mono/ne_en_500w_sample"
+ParaDir="/home/zhouzh/data/tokenized_data/para/ne-en/"
+DestDir="/home/data_ti4_c/zhouzh/low-resource-mt/UNMT_preprocessed_data/en-ne"
 NumMerge=30000
 FastBpe="/home/data_ti4_c/zhouzh/low-resource-mt/tools/fastBPE/fast"
 Word2Vec="/home/data_ti4_c/zhouzh/low-resource-mt/tools/word2vec/word2vec"
 VecMap="python3 /home/data_ti4_c/zhouzh/low-resource-mt/tools/vecmap/map_embeddings.py"
 Binarize="python3 /home/data_ti4_c/zhouzh/low-resource-mt/UnsupervisedMT/NMT/preprocess.py"
 Src=en
-Tgt=zh
+Tgt=ne
 
 # check if src <= tgt
 if [ $Src \> $Tgt ]; then
@@ -19,7 +19,6 @@ if [ $Src \> $Tgt ]; then
     exit
 fi
 
-skip(){
 # check if destdir already exsits
 if [ -d $DestDir ];then
     echo "dest dir already exsits, please remove it first"
@@ -47,7 +46,6 @@ for Splt in "valid" "test"; do
         $Binarize $DestDir/$Lang.vocab $DestDir/$Splt.$Src-$Tgt.$Lang
     done
 done
-}
 
 echo -e "\n Learn Word2vec \n"
 # word2vec
